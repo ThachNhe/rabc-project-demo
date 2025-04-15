@@ -1,6 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { PolicyHandler } from '@/policy/policy.decorator';
 import { PolicyHandlerBase } from '@/policy/policy.handler';
+import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class defaultPolicy extends PolicyHandlerBase {

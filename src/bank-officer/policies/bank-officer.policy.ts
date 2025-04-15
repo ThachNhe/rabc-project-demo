@@ -1,6 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { PolicyHandler } from '@/policy/policy.decorator';
 import { PolicyHandlerBase } from '@/policy/policy.handler';
+import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class defaultPolicy extends PolicyHandlerBase {
@@ -10,14 +9,14 @@ export class defaultPolicy extends PolicyHandlerBase {
 }
 
 @Injectable()
-export class DoctorPolicy1 extends PolicyHandlerBase {
+export class BankOfficerPolicy1 extends PolicyHandlerBase {
   constructor() {
     super('subject.employee.id == resource.employee.id');
   }
 }
 
 @Injectable()
-export class DoctorPolicy2 extends PolicyHandlerBase {
+export class BankOfficerPolicy2 extends PolicyHandlerBase {
   constructor() {
     super('subject.employee.id == resource.employee.id');
   }
