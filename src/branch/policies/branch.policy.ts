@@ -9,15 +9,15 @@ export class defaultPolicy extends PolicyHandlerBase {
 }
 
 @Injectable()
-export class GetPolicy extends PolicyHandlerBase {
+export class CreateTransactionPolicy extends PolicyHandlerBase {
   constructor() {
-    super('subject.customer.id==resource.customer.id');
+    super('user.id == resource.fromAccount.userId');
   }
 }
 
 @Injectable()
-export class CreatePolicy extends PolicyHandlerBase {
+export class GetTransactionPolicy extends PolicyHandlerBase {
   constructor() {
-    super('user.id == resource.userId');
+    super('subject.employee.id == resource.employee.id');
   }
 }

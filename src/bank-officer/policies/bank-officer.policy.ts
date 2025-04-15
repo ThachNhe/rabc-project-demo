@@ -11,13 +11,13 @@ export class defaultPolicy extends PolicyHandlerBase {
 @Injectable()
 export class BankOfficerPolicy1 extends PolicyHandlerBase {
   constructor() {
-    super('subject.employee.id == resource.employee.id');
+    super('user.branchId == resource.branchId');
   }
 }
 
 @Injectable()
 export class BankOfficerPolicy2 extends PolicyHandlerBase {
   constructor() {
-    super('subject.employee.id == resource.employee.id');
+    super('user.branchId == resource.branchId');
   }
 }
