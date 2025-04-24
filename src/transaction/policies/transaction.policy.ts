@@ -21,3 +21,17 @@ export class TransferMoneyPolicy extends PolicyHandlerBase {
     super('user.id===resource.sourceAccount.ownerId');
   }
 }
+
+@Injectable()
+export class CustomerTransactionHistoryPolicy extends PolicyHandlerBase {
+  constructor() {
+    super('user.id===resource.sourceAccount.ownerId');
+  }
+}
+
+@Injectable()
+export class TransactionDetailsPolicy extends PolicyHandlerBase {
+  constructor() {
+    super('user.id === transaction.sourceAccountOwnerId');
+  }
+}

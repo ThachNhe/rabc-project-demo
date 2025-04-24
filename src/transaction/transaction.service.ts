@@ -174,4 +174,61 @@ export class TransactionService {
       { orderBy: { createdAt: 'DESC' } },
     );
   }
+
+  /**
+   * Xem lịch sử giao dịch của tài khoản - Cho Customer
+   */
+  async getTransactionHistory(accountId: string) {
+    // Kiểm tra tài khoản có tồn tại không
+    const account = await this.accountRepository.findOne({ id: accountId });
+
+    if (!account) {
+      throw new NotFoundException(`Tài khoản có ID ${accountId} không tồn tại`);
+    }
+
+    // Kiểm tra quyền truy cập (người dùng chỉ có thể xem lịch sử giao dịch của tài khoản thuộc sở hữu)
+    // Giả sử customerId được lấy từ JWT token
+    const customerId = 'CURRENT_CUSTOMER_ID';
+
+    if (account.customerId !== customerId) {
+      throw new BadRequestException(
+        'Bạn không có quyền xem lịch sử giao dịch của tài khoản này',
+      );
+    }
+
+    // Lấy danh sách giao dịch của tài khoản
+    return this.transactionRepository.find(
+      { account: { id: accountId } },
+      { orderBy: { createdAt: 'DESC' } },
+    );
+  }
+
+  /**
+   * Xem chi tiết một giao dịch cụ thể - Cho Customer
+   */
+  async getTransactionDetails(transactionId: string) {
+    // Tìm giao dịch theo ID
+    const transaction = await this.transactionRepository.findOne(
+      { id: transactionId },
+      { populate: ['account'] },
+    );
+
+    if (!transaction) {
+      throw new NotFoundException(
+        `Giao dịch có ID ${transactionId} không tồn tại`,
+      );
+    }
+
+    // Kiểm tra quyền truy cập (người dùng chỉ có thể xem chi tiết giao dịch của tài khoản thuộc sở hữu)
+    // Giả sử customerId được lấy từ JWT token
+    const customerId = 'CURRENT_CUSTOMER_ID';
+
+    if (transaction.account.customerId !== customerId) {
+      throw new BadRequestException(
+        'Bạn không có quyền xem chi tiết giao dịch này',
+      );
+    }
+
+    return transaction;
+  }
 }

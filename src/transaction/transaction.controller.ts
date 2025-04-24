@@ -1,4 +1,12 @@
-import { Controller, Post, Body, Get, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Param,
+  UseGuards,
+  Query,
+} from '@nestjs/common';
 import { TransactionService } from './transaction.service';
 import { TransferFundsDto } from './dto/transfer-funds.dto';
 import { Roles } from '@/auth/decorators/roles.decorator';
@@ -7,7 +15,9 @@ import { RolesGuard } from '@/auth/guards/roles.guard';
 import { PoliciesGuard } from '@/policy/policies.guard';
 import { CheckPolicies } from '@/policy/policy.decorator';
 import {
+  CustomerTransactionHistoryPolicy,
   TellerPolicy,
+  TransactionDetailsPolicy,
   TransferMoneyPolicy,
 } from './policies/transaction.policy';
 
@@ -19,6 +29,7 @@ export class TransactionController {
   // lấy danh sách giao dịch của khách hàng
   @Get('teller-history')
   @Roles('TELLER')
+  @CheckPolicies(new TellerPolicy())
   async findTellerTransactions() {
     return this.transactionService.getTellerTransactions();
   }
@@ -26,7 +37,24 @@ export class TransactionController {
   // chuyyển tiền
   @Post('transfer')
   @Roles('CUSTOMER')
+  @CheckPolicies(new TransferMoneyPolicy())
   async transferFunds(@Body() transferFundsDto: TransferFundsDto) {
     return this.transactionService.transferFunds(transferFundsDto);
+  }
+
+  // lấy lịch sử giao dịch của khách hàng
+  @Get('history')
+  @Roles('CUSTOMER')
+  @CheckPolicies(new CustomerTransactionHistoryPolicy())
+  async getTransactionHistory(@Query('accountId') accountId: string) {
+    return this.transactionService.getTransactionHistory(accountId);
+  }
+
+  // xem chi tiết một giao dịch cụ thể
+  @Get(':transactionId')
+  @Roles('CUSTOMER')
+  @CheckPolicies(new TransactionDetailsPolicy())
+  async getTransactionDetails(@Param('transactionId') transactionId: string) {
+    return this.transactionService.getTransactionDetails(transactionId);
   }
 }
