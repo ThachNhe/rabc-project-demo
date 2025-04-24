@@ -19,7 +19,6 @@ export class TransactionController {
   // lấy danh sách giao dịch của khách hàng
   @Get('teller-history')
   @Roles('TELLER')
-  @CheckPolicies(new TellerPolicy())
   async findTellerTransactions() {
     return this.transactionService.getTellerTransactions();
   }
@@ -27,7 +26,6 @@ export class TransactionController {
   // chuyyển tiền
   @Post('transfer')
   @Roles('CUSTOMER')
-  @CheckPolicies(new TransferMoneyPolicy())
   async transferFunds(@Body() transferFundsDto: TransferFundsDto) {
     return this.transactionService.transferFunds(transferFundsDto);
   }
