@@ -1,54 +1,63 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Account } from './entities/account.entity';
-import { CreateAccountDto } from './dto/create-account.dto';
-import { UpdateAccountDto } from './dto/update-account.dto';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
+import { InjectRepository } from '@mikro-orm/nestjs';
+import { EntityRepository } from '@mikro-orm/postgresql';
+import { Account } from '@/db/entities';
 
 @Injectable()
 export class AccountService {
   constructor(
     @InjectRepository(Account)
-    private accountRepository: Repository<Account>,
+    private accountRepository: EntityRepository<Account>,
   ) {}
 
-  async get(id: string): Promise<Account> {
-    const account = await this.accountRepository.findOne({
-      where: { id },
-    });
+  async editAccount(id: string, updateAccountDto: any) {
+    const account = await this.accountRepository.findOne({ id });
 
     if (!account) {
-      throw new NotFoundException(`Không tìm thấy tài khoản với ID ${id}`);
+      throw new NotFoundException(`Tài khoản có ID ${id} không tồn tại`);
     }
+
+    // Kiểm tra quyền truy cập (người dùng chỉ có thể sửa tài khoản thuộc sở hữu)
+    // Giả sử customerId được lấy từ JWT token
+    const customerId = 'CURRENT_CUSTOMER_ID'; // Thay bằng ID của khách hàng đang đăng nhập
+
+    if (account.customerId !== customerId) {
+      throw new BadRequestException(
+        'Bạn không có quyền sửa thông tin tài khoản này',
+      );
+    }
+
+    // Cập nhật thông tin tài khoản
+    Object.assign(account, updateAccountDto);
+    await this.accountRepository.persistAndFlush(account);
 
     return account;
   }
 
-  async findAll(): Promise<Account[]> {
-    return this.accountRepository.find();
-  }
+  async getAccountDetails(accountId: string) {
+    const account = await this.accountRepository.findOne(
+      { id: accountId },
+      { populate: ['transactions'] },
+    );
 
-  async create(createAccountDto: CreateAccountDto): Promise<Account> {
-    const newAccount = this.accountRepository.create(createAccountDto);
-    return this.accountRepository.save(newAccount);
-  }
+    if (!account) {
+      throw new NotFoundException(`Tài khoản có ID ${accountId} không tồn tại`);
+    }
 
-  async update(
-    id: string,
-    updateAccountDto: UpdateAccountDto,
-  ): Promise<Account> {
-    const account = await this.get(id);
+    // Kiểm tra quyền truy cập (người dùng chỉ có thể xem tài khoản thuộc sở hữu)
+    // Giả sử customerId được lấy từ JWT token
+    const customerId = 'CURRENT_CUSTOMER_ID'; // Thay bằng ID của khách hàng đang đăng nhập
 
-    // Cập nhật thông tin
-    Object.assign(account, updateAccountDto);
+    if (account.customerId !== customerId) {
+      throw new BadRequestException(
+        'Bạn không có quyền xem thông tin tài khoản này',
+      );
+    }
 
-    return this.accountRepository.save(account);
-  }
-
-  async remove(id: string): Promise<{ message: string }> {
-    const account = await this.get(id);
-    await this.accountRepository.remove(account);
-
-    return { message: `Tài khoản với ID ${id} đã được xóa thành công` };
+    return account;
   }
 }

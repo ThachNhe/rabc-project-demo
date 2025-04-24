@@ -9,29 +9,15 @@ export class defaultPolicy extends PolicyHandlerBase {
 }
 
 @Injectable()
-export class TransactionPolicy1 extends PolicyHandlerBase {
+export class TellerPolicy extends PolicyHandlerBase {
   constructor() {
-    super('user.id == resource.fromAccount.userId');
+    super('user.branch.id===resource.transaction.branchId');
   }
 }
 
 @Injectable()
-export class TransactionPolicy2 extends PolicyHandlerBase {
+export class TransferMoneyPolicy extends PolicyHandlerBase {
   constructor() {
-    super('user.branchId == resource.account.branchId');
-  }
-}
-
-@Injectable()
-export class TransactionPolicy3 extends PolicyHandlerBase {
-  constructor() {
-    super('user.id == resource.account.userId');
-  }
-}
-
-@Injectable()
-export class TransactionPolicy4 extends PolicyHandlerBase {
-  constructor() {
-    super('user.branchId == resource.fromAccount.branchId');
+    super('user.id===resource.sourceAccount.ownerId');
   }
 }

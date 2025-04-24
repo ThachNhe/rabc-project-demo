@@ -17,6 +17,10 @@ export class User {
   @ApiProperty()
   public phoneNumber?: string;
 
+  @Property()
+  @ApiProperty()
+  public username: string;
+
   @Exclude()
   @Property({ hidden: true })
   @Property()
@@ -39,5 +43,3 @@ export class User {
   @ApiProperty()
   updatedAt: Date = new Date();
 }
-
-

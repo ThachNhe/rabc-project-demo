@@ -1,159 +1,177 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Transaction } from './entities/transaction.entity';
-import { Account } from '../account/entities/account.entity';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
+import { EntityManager } from '@mikro-orm/core';
+import { InjectRepository } from '@mikro-orm/nestjs';
+import { EntityRepository } from '@mikro-orm/postgresql';
+import { TransferFundsDto } from './dto/transfer-funds.dto';
+import { Transaction } from '@/db/entities/transaction.entity';
+import { Account } from '@/db/entities/account.entity';
+import { TransactionType } from '@/shared/enums/transaction-type.enum';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
-import { TransferDto } from './dto/transfer.dto';
-import { DepositDto } from './dto/deposit.dto';
-import { WithdrawDto } from './dto/withdraw.dto';
 
 @Injectable()
 export class TransactionService {
   constructor(
     @InjectRepository(Transaction)
-    private transactionRepository: Repository<Transaction>,
+    private transactionRepository: EntityRepository<Transaction>,
     @InjectRepository(Account)
-    private accountRepository: Repository<Account>,
+    private accountRepository: EntityRepository<Account>,
+    private readonly em: EntityManager,
   ) {}
 
-  
-  async transfer(transferDto: TransferDto): Promise<Transaction> {
-    const { fromAccountId, toAccountId, amount, description } = transferDto;
+  async processCashTransaction(createTransactionDto: CreateTransactionDto) {
+    const { accountId, amount, type } = createTransactionDto;
 
-    // Kiểm tra tài khoản nguồn
-    const fromAccount = await this.accountRepository.findOne({
-      where: { id: fromAccountId },
-    });
-    
-    if (!fromAccount) {
-      throw new NotFoundException(`Không tìm thấy tài khoản nguồn với ID ${fromAccountId}`);
+    const account = await this.accountRepository.findOne({ id: accountId });
+
+    if (!account) {
+      throw new NotFoundException(`Tài khoản có ID ${accountId} không tồn tại`);
     }
 
-    // Kiểm tra tài khoản đích
-    const toAccount = await this.accountRepository.findOne({
-      where: { id: toAccountId },
-    });
-    
-    if (!toAccount) {
-      throw new NotFoundException(`Không tìm thấy tài khoản đích với ID ${toAccountId}`);
-    }
-
-    // Kiểm tra số dư
-    if (fromAccount.balance < amount) {
+    // Kiểm tra số dư nếu là giao dịch rút tiền
+    if (type === TransactionType.WITHDRAWAL && account.balance < amount) {
       throw new BadRequestException('Số dư không đủ để thực hiện giao dịch');
     }
 
-    // Thực hiện chuyển tiền
-    fromAccount.balance -= amount;
-    toAccount.balance += amount;
-
-    // Lưu thay đổi vào tài khoản
-    await this.accountRepository.save(fromAccount);
-    await this.accountRepository.save(toAccount);
-
-    // Tạo bản ghi giao dịch
-    const transaction = this.transactionRepository.create({
-      fromAccountId,
-      toAccountId,
-      amount,
-      description,
-      type: 'TRANSFER',
-      status: 'COMPLETED',
-      transactionDate: new Date(),
-    });
-
-    return this.transactionRepository.save(transaction);
-  }
-
-
-  async deposit(depositDto: DepositDto): Promise<Transaction> {
-    const { accountId, amount, description } = depositDto;
-
-    // Kiểm tra tài khoản
-    const account = await this.accountRepository.findOne({
-      where: { id: accountId },
-    });
-    
-    if (!account) {
-      throw new NotFoundException(`Không tìm thấy tài khoản với ID ${accountId}`);
+    // Cập nhật số dư tài khoản
+    if (type === TransactionType.DEPOSIT) {
+      account.balance += amount;
+    } else if (type === TransactionType.WITHDRAWAL) {
+      account.balance -= amount;
     }
 
-    // Thực hiện nạp tiền
-    account.balance += amount;
-    await this.accountRepository.save(account);
+    // Tạo bản ghi giao dịch mới
+    const transaction = new Transaction();
+    transaction.account = account;
+    transaction.amount = amount;
+    transaction.type = type;
+    transaction.processedBy = 'TELLER'; // ID của teller đang đăng nhập
+    transaction.description = `${type === TransactionType.DEPOSIT ? 'Gửi' : 'Rút'} tiền mặt`;
 
-    // Tạo bản ghi giao dịch
-    const transaction = this.transactionRepository.create({
-      toAccountId: accountId,
-      amount,
-      description,
-      type: 'DEPOSIT',
-      status: 'COMPLETED',
-      transactionDate: new Date(),
-    });
+    // Sử dụng transaction của Mikro-ORM
+    const fork = this.em.fork();
 
-    return this.transactionRepository.save(transaction);
-  }
-
-
-  async withdraw(withdrawDto: WithdrawDto): Promise<Transaction> {
-    const { accountId, amount, description } = withdrawDto;
-
-    // Kiểm tra tài khoản
-    const account = await this.accountRepository.findOne({
-      where: { id: accountId },
-    });
-    
-    if (!account) {
-      throw new NotFoundException(`Không tìm thấy tài khoản với ID ${accountId}`);
-    }
-
-    // Kiểm tra số dư
-    if (account.balance < amount) {
-      throw new BadRequestException('Số dư không đủ để thực hiện giao dịch');
-    }
-
-    // Thực hiện rút tiền
-    account.balance -= amount;
-    await this.accountRepository.save(account);
-
-    // Tạo bản ghi giao dịch
-    const transaction = this.transactionRepository.create({
-      fromAccountId: accountId,
-      amount,
-      description,
-      type: 'WITHDRAW',
-      status: 'COMPLETED',
-      transactionDate: new Date(),
-    });
-
-    return this.transactionRepository.save(transaction);
-  }
-
-
-  async getHistory(accountId: string): Promise<Transaction[]> {
-    return this.transactionRepository.find({
-      where: [
-        { fromAccountId: accountId },
-        { toAccountId: accountId },
-      ],
-      order: {
-        transactionDate: 'DESC',
-      },
-    });
-  }
-
-
-  async findOne(id: string): Promise<Transaction> {
-    const transaction = await this.transactionRepository.findOne({
-      where: { id },
-    });
-
-    if (!transaction) {
-      throw new NotFoundException(`Không tìm thấy giao dịch với ID ${id}`);
-    }
+    await fork.persistAndFlush([account, transaction]);
 
     return transaction;
+  }
+
+  async getTellerTransactions() {
+    // Giả sử có thông tin về teller hiện tại từ request
+    const tellerId = 'CURRENT_TELLER_ID';
+
+    return this.transactionRepository.find(
+      { processedBy: tellerId },
+      {
+        populate: ['account'],
+        orderBy: { createdAt: 'DESC' },
+      },
+    );
+  }
+
+  /**
+   * Chuyển tiền đến tài khoản khác - Cho Customer
+   */
+  async transferFunds(transferFundsDto: TransferFundsDto) {
+    const { sourceAccountId, destinationAccountId, amount, description } =
+      transferFundsDto;
+
+    // Trong Mikro-ORM, chúng ta sử dụng transaction theo cách khác
+    const fork = this.em.fork();
+
+    try {
+      // Tìm tài khoản nguồn
+      const sourceAccount = await this.accountRepository.findOne({
+        id: sourceAccountId,
+      });
+
+      if (!sourceAccount) {
+        throw new NotFoundException(
+          `Tài khoản nguồn có ID ${sourceAccountId} không tồn tại`,
+        );
+      }
+
+      // Tìm tài khoản đích
+      const destinationAccount = await this.accountRepository.findOne({
+        id: destinationAccountId,
+      });
+
+      if (!destinationAccount) {
+        throw new NotFoundException(
+          `Tài khoản đích có ID ${destinationAccountId} không tồn tại`,
+        );
+      }
+
+      // Kiểm tra số dư
+      if (sourceAccount.balance < amount) {
+        throw new BadRequestException('Số dư không đủ để thực hiện giao dịch');
+      }
+
+      // Cập nhật số dư tài khoản
+      sourceAccount.balance -= amount;
+      destinationAccount.balance += amount;
+
+      // Tạo bản ghi giao dịch cho tài khoản nguồn
+      const sourceTransaction = new Transaction();
+      sourceTransaction.account = sourceAccount;
+      sourceTransaction.amount = -amount;
+      sourceTransaction.type = TransactionType.TRANSFER;
+      sourceTransaction.description = `Chuyển tiền đến tài khoản ${destinationAccountId}: ${description}`;
+
+      // Tạo bản ghi giao dịch cho tài khoản đích
+      const destinationTransaction = new Transaction();
+      destinationTransaction.account = destinationAccount;
+      destinationTransaction.amount = amount;
+      destinationTransaction.type = TransactionType.TRANSFER;
+      destinationTransaction.description = `Nhận tiền từ tài khoản ${sourceAccountId}: ${description}`;
+
+      // Persist entities trong transaction
+      await fork.persistAndFlush([
+        sourceAccount,
+        destinationAccount,
+        sourceTransaction,
+        destinationTransaction,
+      ]);
+
+      return {
+        success: true,
+        message: 'Chuyển tiền thành công',
+        transactionId: sourceTransaction.id,
+      };
+    } catch (error) {
+      // Rollback được xử lý tự động bởi Mikro-ORM khi có lỗi
+      throw error;
+    }
+  }
+
+  /**
+   * Xem lịch sử giao dịch của tài khoản - Cho Customer
+   */
+  async getAccountTransactions(accountId: string) {
+    // Kiểm tra tài khoản có tồn tại không
+    const account = await this.accountRepository.findOne({ id: accountId });
+
+    if (!account) {
+      throw new NotFoundException(`Tài khoản có ID ${accountId} không tồn tại`);
+    }
+
+    // Kiểm tra quyền truy cập (người dùng chỉ có thể xem lịch sử giao dịch của tài khoản thuộc sở hữu)
+    // Giả sử customerId được lấy từ JWT token
+    const customerId = 'CURRENT_CUSTOMER_ID';
+
+    if (account.customerId !== customerId) {
+      throw new BadRequestException(
+        'Bạn không có quyền xem lịch sử giao dịch của tài khoản này',
+      );
+    }
+
+    // Lấy danh sách giao dịch của tài khoản
+    return this.transactionRepository.find(
+      { account: { id: accountId } },
+      { orderBy: { createdAt: 'DESC' } },
+    );
   }
 }
